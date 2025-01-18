@@ -1,0 +1,8 @@
+boto3
+flask
+opencv-python
+fer
+mediapipe
+anthropic
+tensorflow-macos
+tensorflow-metal
