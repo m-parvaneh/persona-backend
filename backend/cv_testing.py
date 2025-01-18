@@ -52,7 +52,6 @@ while cap.isOpened():
             if face.size > 0:
                 emotion, score = emotion_detector.top_emotion(face)
                 cv2.putText(frame, f"Emotion: {emotion}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-                # cv2.putText(frame, "Emotion: Bitch ass mf", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
             # Draw bounding box on detected face
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
