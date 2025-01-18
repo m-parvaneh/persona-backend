@@ -1,69 +1,96 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+from agent.emotion_monitor import EmotionMonitorService
+
+import threading
 
 # Initialize Flask app
 app = Flask(__name__)
+CORS(app) 
 
-# Example data store (in-memory database for simplicity)
-data_store = {
-    "users": []
-}
+# Initialize emotion monitor service
+emotion_service = EmotionMonitorService()
 
-# Route to get all users
-@app.route('/api/users', methods=['GET'])
-def get_users():
-    return jsonify({"users": data_store["users"]}), 200
-
-# Route to create a new user
-@app.route('/api/users', methods=['POST'])
-def create_user():
+@app.route('/api/monitor/start', methods=['POST'])
+def start_monitoring():
+    """Start monitoring emotions"""
     try:
-        user = request.json
-        if not user or not user.get("name") or not user.get("email"):
-            return jsonify({"error": "Invalid input"}), 400
-
-        user_id = len(data_store["users"]) + 1
-        user["id"] = user_id
-        data_store["users"].append(user)
-        return jsonify(user), 201
+        data = request.get_json()
+        duration = float(data.get('duration', 5.0))
+        
+        if emotion_service.start_monitoring(duration):
+            return jsonify({
+                'status': 'success',
+                'message': f'Started monitoring for {duration} seconds'
+            }), 200
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to start monitoring'
+            }), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Route to get a specific user by ID
-@app.route('/api/users/<int:user_id>', methods=['GET'])
-def get_user(user_id):
-    user = next((u for u in data_store["users"] if u["id"] == user_id), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    return jsonify(user), 200
-
-# Route to update a user's information
-@app.route('/api/users/<int:user_id>', methods=['PUT'])
-def update_user(user_id):
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+    
+@app.route('/api/monitor/result', methods=['GET'])
+def get_result():
+    """Get the emotional response result"""
     try:
-        user = next((u for u in data_store["users"] if u["id"] == user_id), None)
-        if not user:
-            return jsonify({"error": "User not found"}), 404
-
-        updated_data = request.json
-        if not updated_data:
-            return jsonify({"error": "Invalid input"}), 400
-
-        user.update(updated_data)
-        return jsonify(user), 200
+        emotion_data = emotion_service.get_dominant_emotion()
+        
+        # TODO: Can potentially make confusion indicators more sensitive by just treating
+        # it as if confusion exists when we see neutral, surprise, and anger all in one buffer or something
+        if emotion_data:
+            # Determine if follow-up is needed
+            confusion_indicators = {
+                'neutral': 0.7,
+                'surprise': 0.6,
+                'fear': 0.5,
+                'sad': 0.5
+            }
+            
+            needs_followup = (
+                emotion_data['emotion'] in confusion_indicators and 
+                emotion_data['score'] > confusion_indicators[emotion_data['emotion']]
+            )
+            
+            return jsonify({
+                'status': 'success',
+                'data': {
+                    'emotion': emotion_data,
+                    'needs_followup': needs_followup
+                }
+            }), 200
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'No emotion data available'
+            }), 404
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
-# Route to delete a user
-@app.route('/api/users/<int:user_id>', methods=['DELETE'])
-def delete_user(user_id):
-    global data_store
-    user = next((u for u in data_store["users"] if u["id"] == user_id), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+# LLM Translation Route 
 
-    data_store["users"] = [u for u in data_store["users"] if u["id"] != user_id]
-    return jsonify({"message": "User deleted"}), 200
+
+# Emotion Recognition Route
+
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Start Flask in a daemon thread
+    flask_thread = threading.Thread(
+        target=lambda: app.run(host='127.0.0.1', port=5000, debug=False)
+    )
+    flask_thread.daemon = True
+    flask_thread.start()
+    
+    # Run OpenCV in main thread
+    try:
+        emotion_service.run_video_display()
+    finally:
+        emotion_service.stop()
