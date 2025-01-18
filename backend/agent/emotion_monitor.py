@@ -6,9 +6,9 @@ from collections import deque
 import time
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from multiprocessing import Process, Manager, Value
+import ctypes
 
-app = Flask(__name__)
-CORS(app)
 
 class EmotionMonitorService:
     _instance = None
@@ -93,42 +93,3 @@ class EmotionMonitorService:
         self.is_running = False
         self.cap.release()
         cv2.destroyAllWindows()
-
-# Initialize service
-emotion_service = EmotionMonitorService()
-
-@app.route('/api/monitor/start', methods=['POST'])
-def start_monitoring():
-    try:
-        data = request.get_json()
-        duration = float(data.get('duration', 5.0))
-        
-        if emotion_service.start_monitoring(duration):
-            return jsonify({
-                'status': 'success',
-                'message': f'Started monitoring for {duration} seconds'
-            }), 200
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
-
-@app.route('/api/monitor/result', methods=['GET'])
-def get_result():
-    try:
-        emotion_data = emotion_service.get_dominant_emotion()
-        if emotion_data:
-            return jsonify({
-                'status': 'success',
-                'data': emotion_data
-            }), 200
-        return jsonify({
-            'status': 'error',
-            'message': 'No emotion data available'
-        }), 404
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500

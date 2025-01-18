@@ -8,4 +8,4 @@ tensorflow-macos
 tensorflow-metal
 pydantic
 Pillow
-tkinter
+python-dotenv

@@ -1,16 +1,68 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from agent.emotion_monitor import EmotionMonitorService
+from agent.translation import *
+
 
 import threading
+import logging
+import time
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('flask_cors')
+logger.level = logging.DEBUG
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
 # Initialize emotion monitor service
 emotion_service = EmotionMonitorService()
 
+@app.after_request
+def log_response(response):
+    print(f"Response Status: {response.status}")
+    print(f"Response Headers: {dict(response.headers)}")
+    return response
+
+@app.route('/test', methods=['GET', 'POST', 'OPTIONS'])
+def test():
+    print("Request received!")
+    print("Method:", request.method)
+    print("Headers:", dict(request.headers))
+    return jsonify({"message": "Test successful!"})
+
+# ================================================
+# Translation Endpoints
+@app.route('/api/translation', methods=['POST'])
+def generate_llm_translation():
+    """
+    Use Claude to generate a translation of what the user is trying to 
+    learn how to say.
+    """
+    # TODO: modify this to include the right field names
+    try:
+        data = request.get_json()
+        prompt = data.get('prompt', "Hello")    # simple default value
+        language = data.get('language', "Mandarin")
+
+        # Generate the response to the user's prompt
+        response = generate_language_response(prompt, language)[0].text
+        # print(response)
+
+        return jsonify({
+            'status': 'success',
+            'message': response
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to generate translation.'
+        }), 500
+#=============================================================
+
+#=============================================================
+# CV Monitoring Endpoints
 @app.route('/api/monitor/start', methods=['POST'])
 def start_monitoring():
     """Start monitoring emotions"""
@@ -73,18 +125,13 @@ def get_result():
             'status': 'error',
             'message': str(e)
         }), 500
-
-# LLM Translation Route 
-
-
-# Emotion Recognition Route
-
+#=========================================================================
 
 # Run the app
 if __name__ == '__main__':
     # Start Flask in a daemon thread
     flask_thread = threading.Thread(
-        target=lambda: app.run(host='127.0.0.1', port=5000, debug=False)
+        target=lambda: app.run(host='0.0.0.0', port=8000, debug=False)
     )
     flask_thread.daemon = True
     flask_thread.start()
